@@ -1,18 +1,10 @@
 import Foundation
 
-struct ToppingOption: Identifiable, Codable, Equatable {
-    var id: UUID
+struct ToppingOption: Identifiable, Codable, Hashable {
+    let id: UUID
     var label: String
     var price: Double
     
-    // Required for SwiftUI to differentiate instances
-    static func == (lhs: ToppingOption, rhs: ToppingOption) -> Bool {
-        return lhs.id == rhs.id
-    }
-}
-
-// ADD THIS NEW EXTENSION:
-extension ToppingOption {
     var formattedPrice: String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency

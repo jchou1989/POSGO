@@ -6,9 +6,11 @@ struct POSGOApp: App {
     
     var body: some Scene {
         WindowGroup {
-            MainView()
+            ChageePOSView()
                 .environmentObject(appState)
+                .statusBar(hidden: true) // Hide status bar for full-screen POS experience
         }
+        .windowStyle(.hiddenTitleBar) // For macOS
     }
 }
 
