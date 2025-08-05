@@ -5,6 +5,9 @@ struct POSGOApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var authManager = AuthenticationManager()
     @StateObject private var paymentManager = PaymentManager()
+    @StateObject private var errorHandler = ErrorHandler.shared
+    @StateObject private var networkMonitor = NetworkMonitor.shared
+    @StateObject private var offlineManager = OfflineManager.shared
     
     var body: some Scene {
         WindowGroup {
@@ -12,9 +15,20 @@ struct POSGOApp: App {
                 .environmentObject(appState)
                 .environmentObject(authManager)
                 .environmentObject(paymentManager)
+                .environmentObject(errorHandler)
+                .environmentObject(networkMonitor)
+                .environmentObject(offlineManager)
                 .preferredColorScheme(.light) // POS apps typically use light mode
+                .alert("Error", isPresented: $errorHandler.isShowingError) {
+                    Button("OK") {
+                        errorHandler.clearError()
+                    }
+                } message: {
+                    if let error = errorHandler.currentError {
+                        Text(error.errorDescription ?? "Unknown error")
+                    }
+                }
         }
-        .windowStyle(.hiddenTitleBar) // Full-screen experience for iPad
     }
 }
 
@@ -62,21 +76,39 @@ class AuthenticationManager: ObservableObject {
     @Published var isLoading = false
     
     func login(username: String, password: String) async -> Bool {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
         
-        // Simulate authentication
+        // Simulate authentication delay
         try? await Task.sleep(nanoseconds: 1_000_000_000)
         
-        // For demo purposes, accept any login
-        isAuthenticated = true
-        currentUser = Employee(id: UUID(), name: username, role: .cashier)
+        // Check against production user credentials
+        if let user = ProductionData.defaultUsers.first(where: { $0.name.lowercased() == username.lowercased() }) {
+            // In production, you would validate password here
+            // For now, accept any password for demo
+            await MainActor.run {
+                isAuthenticated = true
+                currentUser = user
+                isLoading = false
+            }
+            return true
+        }
+        
+        // Fallback for demo: create a cashier with the entered name
+        await MainActor.run {
+            isAuthenticated = true
+            currentUser = Employee(id: UUID(), name: username, role: .cashier)
+            isLoading = false
+        }
         return true
     }
     
     func logout() {
-        isAuthenticated = false
-        currentUser = nil
+        Task { @MainActor in
+            isAuthenticated = false
+            currentUser = nil
+        }
     }
 }
 
@@ -85,8 +117,9 @@ class PaymentManager: ObservableObject {
     @Published var lastTransaction: PaymentTransaction?
     
     func processPayment(amount: Double, method: PaymentMethod) async -> PaymentResult {
-        isProcessing = true
-        defer { isProcessing = false }
+        await MainActor.run {
+            isProcessing = true
+        }
         
         // Simulate payment processing
         try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -99,46 +132,10 @@ class PaymentManager: ObservableObject {
             timestamp: Date()
         )
         
-        lastTransaction = transaction
+        await MainActor.run {
+            lastTransaction = transaction
+            isProcessing = false
+        }
         return PaymentResult.success(transaction)
     }
-}
-
-// MARK: - Supporting Models
-struct Employee: Identifiable, Codable {
-    let id: UUID
-    let name: String
-    let role: EmployeeRole
-}
-
-enum EmployeeRole: String, Codable, CaseIterable {
-    case cashier = "Cashier"
-    case manager = "Manager"
-    case admin = "Admin"
-}
-
-enum PaymentMethod: String, CaseIterable {
-    case cash = "Cash"
-    case card = "Card"
-    case mobile = "Mobile"
-    case giftCard = "Gift Card"
-}
-
-struct PaymentTransaction: Identifiable {
-    let id: UUID
-    let amount: Double
-    let method: PaymentMethod
-    let status: PaymentStatus
-    let timestamp: Date
-}
-
-enum PaymentStatus {
-    case pending
-    case success
-    case failed
-}
-
-enum PaymentResult {
-    case success(PaymentTransaction)
-    case failure(String)
 }

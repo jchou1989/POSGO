@@ -103,7 +103,7 @@ struct PaymentHeaderView: View {
                     Text("Total Amount")
                         .font(.headline)
                         .foregroundColor(.secondary)
-                    Text(total.formatted(.currency(code: "USD")))
+                    Text("QR \(String(format: "%.2f", total))")
                         .font(.largeTitle.bold())
                         .foregroundColor(.primary)
                 }
@@ -160,6 +160,7 @@ struct PaymentMethodCard: View {
         case .card: return "creditcard.fill"
         case .mobile: return "iphone"
         case .giftCard: return "gift.fill"
+        case .qlub: return "q.square.fill"
         }
     }
     
@@ -169,6 +170,7 @@ struct PaymentMethodCard: View {
         case .card: return .blue
         case .mobile: return .purple
         case .giftCard: return .orange
+        case .qlub: return .red
         }
     }
     
@@ -226,13 +228,13 @@ struct CashPaymentView: View {
                     HStack {
                         Text("Total:")
                         Spacer()
-                        Text(total.formatted(.currency(code: "USD")))
+                        Text("QR \(String(format: "%.2f", total))")
                     }
                     
                     HStack {
                         Text("Cash:")
                         Spacer()
-                        Text(amount.formatted(.currency(code: "USD")))
+                        Text("QR \(String(format: "%.2f", amount))")
                     }
                     
                     Divider()
@@ -241,7 +243,7 @@ struct CashPaymentView: View {
                         Text("Change:")
                             .font(.headline)
                         Spacer()
-                        Text(change.formatted(.currency(code: "USD")))
+                        Text("QR \(String(format: "%.2f", change))")
                             .font(.headline)
                             .foregroundColor(change >= 0 ? .green : .red)
                     }
@@ -310,11 +312,15 @@ struct PaymentActionButtons: View {
     }
 }
 
-// MARK: - Receipt View
+// MARK: - Receipt View with QR Code
 struct ReceiptView: View {
     let transaction: PaymentTransaction
     let cart: [OrderItem]
     let onDismiss: () -> Void
+    
+    @State private var qrCodeImages: [UIImage] = []
+    @State private var isLoadingQR = false
+    @StateObject private var thermalPrinter = ThermalPrinterService.shared
     
     private var total: Double {
         cart.reduce(0) { $0 + $1.price }
@@ -337,32 +343,64 @@ struct ReceiptView: View {
                     
                     Divider()
                     
-                    // Items
-                    VStack(spacing: 12) {
-                        ForEach(cart) { item in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(item.name)
-                                        .font(.subheadline)
-                                    
-                                    if !item.size.isEmpty {
-                                        Text(item.size)
+                    // Items with QR Codes
+                    VStack(spacing: 16) {
+                        ForEach(Array(cart.enumerated()), id: \.element.id) { index, item in
+                            VStack(spacing: 8) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(item.name)
+                                            .font(.subheadline.bold())
+                                        
+                                        Text("Size: \(item.size)")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
+                                        
+                                        if let sugarLevel = item.sugarLevel {
+                                            Text("Sugar: \(sugarLevel)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        
+                                        if let iceLevel = item.iceLevel {
+                                            Text("Ice: \(iceLevel)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+                                        
+                                        if !item.selectedToppings.isEmpty {
+                                            Text("Toppings: \(item.selectedToppings.joined(separator: ", "))")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
                                     }
                                     
-                                    if !item.toppings.isEmpty {
-                                        Text(item.toppings.joined(separator: ", "))
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
+                                    Spacer()
+                                    
+                                    Text(item.qarFormattedPrice)
+                                        .font(.subheadline.bold())
                                 }
                                 
-                                Spacer()
-                                
-                                Text(item.formattedPrice)
-                                    .font(.subheadline)
+                                // QR Code for beverage machine
+                                if index < qrCodeImages.count {
+                                    VStack(spacing: 4) {
+                                        Image(uiImage: qrCodeImages[index])
+                                            .resizable()
+                                            .frame(width: 120, height: 120)
+                                            .cornerRadius(8)
+                                        
+                                        Text("Scan for Beverage Machine")
+                                            .font(.caption2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                } else if isLoadingQR {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                }
                             }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
                         }
                     }
                     
@@ -373,7 +411,7 @@ struct ReceiptView: View {
                         Text("Total")
                             .font(.headline.bold())
                         Spacer()
-                        Text(total.formatted(.currency(code: "USD")))
+                        Text(NumberFormatter.qarFormatter.string(from: NSNumber(value: total)) ?? "QR \(String(format: "%.2f", total))")
                             .font(.headline.bold())
                     }
                     
@@ -391,21 +429,54 @@ struct ReceiptView: View {
                             Text(transaction.id.uuidString.prefix(8))
                                 .font(.caption)
                         }
+                        
+                        HStack {
+                            Text("Status:")
+                            Spacer()
+                            Text(transaction.status.displayName)
+                                .foregroundColor(transaction.status.color)
+                        }
                     }
                     .font(.caption)
                     .foregroundColor(.secondary)
                     
                     // Action Buttons
                     VStack(spacing: 12) {
-                        Button(action: printReceipt) {
+                        Button(action: {
+                            Task {
+                                let order = Order(
+                                    items: cart,
+                                    total: total,
+                                    paymentMethod: transaction.method,
+                                    paymentStatus: transaction.status
+                                )
+                                let success = await thermalPrinter.printMultipleQRLabels(for: order)
+                                if !success {
+                                    print("⚠️ Failed to print QR code labels")
+                                }
+                            }
+                        }) {
                             HStack {
                                 Image(systemName: "printer")
-                                Text("Print Receipt")
+                                Text(thermalPrinter.isPrinting ? "Printing..." : "Print Labels")
                             }
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.blue)
+                            .background(thermalPrinter.isPrinting ? Color.gray : Color.blue)
+                            .cornerRadius(12)
+                        }
+                        .disabled(thermalPrinter.isPrinting)
+                        
+                        Button(action: shareReceipt) {
+                            HStack {
+                                Image(systemName: "square.and.arrow.up")
+                                Text("Share Receipt")
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.green)
                             .cornerRadius(12)
                         }
                         
@@ -425,11 +496,65 @@ struct ReceiptView: View {
             .navigationTitle("Receipt")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .onAppear {
+            generateQRCodes()
+        }
+    }
+    
+    private func generateQRCodes() {
+        isLoadingQR = true
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            var qrImages: [UIImage] = []
+            
+            for item in cart {
+                let config = QRCodeGenerator.createBeverageConfig(
+                    from: item,
+                    orderId: transaction.id.uuidString,
+                    machineId: "BEV001"
+                )
+                
+                if let qrCode = QRCodeGenerator.generateQRCode(for: config) {
+                    qrImages.append(qrCode)
+                }
+            }
+            
+            DispatchQueue.main.async {
+                self.qrCodeImages = qrImages
+                self.isLoadingQR = false
+            }
+        }
     }
     
     private func printReceipt() {
-        // Implement receipt printing functionality
-        print("Printing receipt for transaction: \(transaction.id)")
+        // Generate receipt text
+        let order = Order(
+            items: cart,
+            total: total,
+            paymentMethod: transaction.method,
+            paymentStatus: transaction.status
+        )
+        
+        let receiptText = QRCodeGenerator.generateReceiptWithQRCode(order: order, qrCodeImage: nil)
+        print("📄 Printing receipt:\n\(receiptText)")
+        
+        // In a real app, you would send this to a printer
+        // For now, we'll just log it
+    }
+    
+    private func shareReceipt() {
+        // Generate receipt text for sharing
+        let order = Order(
+            items: cart,
+            total: total,
+            paymentMethod: transaction.method,
+            paymentStatus: transaction.status
+        )
+        
+        let receiptText = QRCodeGenerator.generateReceiptWithQRCode(order: order, qrCodeImage: nil)
+        
+        // In a real app, you would share this text
+        print("📤 Sharing receipt:\n\(receiptText)")
     }
 }
 
@@ -439,9 +564,9 @@ struct ReceiptView: View {
             OrderItem(
                 name: "Iced Coffee",
                 size: "Large",
-                sugar: "50%",
-                ice: "Regular",
-                toppings: ["Whipped Cream"],
+                sugarLevel: "50%",
+                iceLevel: "Regular",
+                selectedToppings: ["Whipped Cream"],
                 sizePrice: 1.50,
                 toppingPrices: [0.50],
                 price: 4.25

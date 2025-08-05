@@ -8,16 +8,23 @@ struct POSView: View {
     @State private var selectedCategory: MenuCategory?
     @State private var showingCart = false
     @State private var showingPayment = false
+    @State private var showingCustomize = false
+    @State private var selectedMenuItem: MenuItem?
+    @State private var showingAdmin = false
     @State private var isLoading = false
     @State private var errorMessage = ""
     @State private var showError = false
     
     var body: some View {
         NavigationView {
-            // Left side - Menu
+            // Left side - Menu (70% width)
             VStack(spacing: 0) {
                 // Header
-                POSHeaderView()
+                POSHeaderView(
+                    onAdminTap: {
+                        showingAdmin = true
+                    }
+                )
                 
                 // Categories
                 CategoryGridView(
@@ -35,14 +42,15 @@ struct POSView: View {
                 MenuItemsGridView(
                     items: menuItems,
                     onItemSelected: { item in
-                        showCustomizeView(for: item)
+                        selectedMenuItem = item
+                        showingCustomize = true
                     }
                 )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(.systemGray6))
             
-            // Right side - Cart
+            // Right side - Cart (30% width)
             CartSidebarView(
                 cart: $appState.cart,
                 onCheckout: {
@@ -62,6 +70,20 @@ struct POSView: View {
                 }
             )
         }
+        .sheet(isPresented: $showingCustomize) {
+            if let menuItem = selectedMenuItem {
+                CustomizeView(
+                    menuItem: menuItem,
+                    onAddToCart: { orderItem in
+                        appState.addToCart(orderItem)
+                        showingCustomize = false
+                    }
+                )
+            }
+        }
+        .sheet(isPresented: $showingAdmin) {
+            AdminView()
+        }
         .task {
             await loadCategories()
         }
@@ -73,48 +95,55 @@ struct POSView: View {
     }
     
     private func loadCategories() async {
-        isLoading = true
+        await MainActor.run {
+            isLoading = true
+        }
+        
         do {
-            categories = try await SupabaseService.fetchCategories()
+            let fetchedCategories = try await SupabaseService.fetchCategories()
+            await MainActor.run {
+                categories = fetchedCategories
+                if let firstCategory = categories.first {
+                    selectedCategory = firstCategory
+                }
+            }
+            
             if let firstCategory = categories.first {
-                selectedCategory = firstCategory
                 await loadMenuItems(for: firstCategory.id)
             }
         } catch {
-            errorMessage = "Failed to load categories: \(error.localizedDescription)"
-            showError = true
+            await MainActor.run {
+                errorMessage = "Failed to load categories: \(error.localizedDescription)"
+                showError = true
+            }
         }
-        isLoading = false
+        
+        await MainActor.run {
+            isLoading = false
+        }
     }
     
     private func loadMenuItems(for categoryId: UUID) async {
         do {
-            menuItems = try await SupabaseService.fetchMenuItems(for: categoryId)
+            let fetchedItems = try await SupabaseService.fetchMenuItems(for: categoryId)
+            await MainActor.run {
+                menuItems = fetchedItems
+            }
         } catch {
-            errorMessage = "Failed to load menu items: \(error.localizedDescription)"
-            showError = true
+            await MainActor.run {
+                errorMessage = "Failed to load menu items: \(error.localizedDescription)"
+                showError = true
+            }
         }
     }
     
-    private func showCustomizeView(for item: MenuItem) {
-        // This will be implemented with a sheet or navigation
-        let orderItem = OrderItem(
-            name: item.name,
-            size: "Regular",
-            sugar: "100%",
-            ice: "Regular",
-            toppings: [],
-            sizePrice: 0,
-            toppingPrices: [],
-            price: item.price
-        )
-        appState.addToCart(orderItem)
-    }
+    // CustomizeView is now handled by the sheet presentation
 }
 
 // MARK: - Header View
 struct POSHeaderView: View {
     @EnvironmentObject var authManager: AuthenticationManager
+    let onAdminTap: () -> Void
     
     var body: some View {
         HStack {
@@ -129,12 +158,46 @@ struct POSHeaderView: View {
             
             Spacer()
             
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(authManager.currentUser?.name ?? "User")
-                    .font(.subheadline.bold())
-                Text(authManager.currentUser?.role.rawValue ?? "Cashier")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+            HStack(spacing: 16) {
+                // Admin button for managers and admins
+                if authManager.currentUser?.role == .manager || authManager.currentUser?.role == .admin {
+                    Button(action: onAdminTap) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "gearshape.fill")
+                                .font(.caption)
+                            Text("Admin")
+                                .font(.caption.bold())
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.blue)
+                        .cornerRadius(8)
+                    }
+                }
+                
+                // Demo admin button (for testing)
+                Button(action: onAdminTap) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "gearshape.fill")
+                            .font(.caption)
+                        Text("Admin")
+                            .font(.caption.bold())
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.orange)
+                    .cornerRadius(8)
+                }
+                
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(authManager.currentUser?.name ?? "User")
+                        .font(.subheadline.bold())
+                    Text(authManager.currentUser?.role.rawValue ?? "Cashier")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding()
@@ -235,7 +298,7 @@ struct MenuItemCard: View {
                         .foregroundColor(.primary)
                         .multilineTextAlignment(.center)
                     
-                    Text(item.formattedPrice)
+                    Text(item.qarFormattedPrice)
                         .font(.title3.bold())
                         .foregroundColor(.blue)
                 }
@@ -273,10 +336,25 @@ struct CartSidebarView: View {
             .background(Color(.systemBackground))
             
             // Cart items
-            if cart.isEmpty {
-                EmptyCartView()
-            } else {
-                ScrollView {
+            ScrollView {
+                if cart.isEmpty {
+                    VStack(spacing: 20) {
+                        Image(systemName: "cart")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gray.opacity(0.5))
+                        
+                        Text("Your cart is empty")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        
+                        Text("Select items from the menu to get started")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
+                } else {
                     LazyVStack(spacing: 12) {
                         ForEach(cart) { item in
                             CartItemRow(item: item)
@@ -287,40 +365,40 @@ struct CartSidebarView: View {
             }
             
             // Checkout section
-            if !cart.isEmpty {
-                VStack(spacing: 16) {
-                    Divider()
-                    
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("Total")
-                                .font(.title2.bold())
-                            Spacer()
-                            Text(total.formatted(.currency(code: "USD")))
-                                .font(.title2.bold())
-                                .foregroundColor(.blue)
-                        }
-                        
-                        Button(action: onCheckout) {
-                            HStack {
-                                Image(systemName: "creditcard.fill")
-                                Text("Checkout")
-                                    .font(.headline)
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(12)
-                        }
+            VStack(spacing: 16) {
+                Divider()
+                
+                VStack(spacing: 8) {
+                    HStack {
+                        Text("Total")
+                            .font(.title2.bold())
+                        Spacer()
+                        Text("QR \(String(format: "%.2f", total))")
+                            .font(.title2.bold())
+                            .foregroundColor(.blue)
                     }
-                    .padding()
+                    
+                    Button(action: onCheckout) {
+                        HStack {
+                            Image(systemName: "creditcard.fill")
+                            Text("Checkout")
+                                .font(.headline)
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(cart.isEmpty ? Color.gray : Color.blue)
+                        .cornerRadius(12)
+                    }
+                    .disabled(cart.isEmpty)
                 }
-                .background(Color(.systemBackground))
+                .padding()
             }
+            .background(Color(.systemBackground))
         }
-        .frame(width: 350)
-        .background(Color(.systemGray6))
+        .frame(minWidth: 400, maxWidth: .infinity)
+        .background(Color(.systemBackground))
+        .shadow(color: .black.opacity(0.1), radius: 4, x: -2)
     }
 }
 
@@ -339,8 +417,8 @@ struct CartItemRow: View {
                         .foregroundColor(.secondary)
                 }
                 
-                if !item.toppings.isEmpty {
-                    Text(item.toppings.joined(separator: ", "))
+                if !item.selectedToppings.isEmpty {
+                    Text(item.selectedToppings.joined(separator: ", "))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -348,7 +426,7 @@ struct CartItemRow: View {
             
             Spacer()
             
-            Text(item.formattedPrice)
+                                Text(item.qarFormattedPrice)
                 .font(.subheadline.bold())
         }
         .padding()
@@ -357,7 +435,7 @@ struct CartItemRow: View {
     }
 }
 
-struct EmptyCartView: View {
+struct POSEmptyCartView: View {
     var body: some View {
         VStack(spacing: 20) {
             Image(systemName: "cart.badge.questionmark")
@@ -368,9 +446,9 @@ struct EmptyCartView: View {
                 Text("Cart is Empty")
                     .font(.title3.bold())
                 Text("Select items from the menu to get started")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -378,13 +456,7 @@ struct EmptyCartView: View {
 }
 
 // MARK: - Extensions
-extension MenuItem {
-    var formattedPrice: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        return formatter.string(from: NSNumber(value: price)) ?? "$\(String(format: "%.2f", price))"
-    }
-}
+// Note: formattedPrice is defined in ProductionData.swift extension
 
 #Preview {
     POSView()

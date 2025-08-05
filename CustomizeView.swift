@@ -15,7 +15,7 @@ struct CustomizeView: View {
                         HStack {
                             Text(size.label)
                             Spacer()
-                            Text(size.formattedPrice)
+                            Text("QR \(String(format: "%.2f", size.price))")
                             if viewModel.selectedSize?.id == size.id {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.blue)
@@ -24,6 +24,42 @@ struct CustomizeView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             viewModel.selectedSize = size
+                        }
+                    }
+                }
+                
+                // Sugar Level Selection
+                Section(header: Text("Sugar Level")) {
+                    ForEach(ProductionData.sugarLevels, id: \.id) { sugarLevel in
+                        HStack {
+                            Text(sugarLevel.label)
+                            Spacer()
+                            if viewModel.selectedSugarLevel == sugarLevel.label {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            viewModel.selectedSugarLevel = sugarLevel.label
+                        }
+                    }
+                }
+                
+                // Ice Level Selection
+                Section(header: Text("Ice Level")) {
+                    ForEach(ProductionData.iceLevels, id: \.id) { iceLevel in
+                        HStack {
+                            Text(iceLevel.label)
+                            Spacer()
+                            if viewModel.selectedIceLevel == iceLevel.label {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            viewModel.selectedIceLevel = iceLevel.label
                         }
                     }
                 }
@@ -44,7 +80,7 @@ struct CustomizeView: View {
                             HStack {
                                 Text(topping.label)
                                 Spacer()
-                                Text(topping.formattedPrice)
+                                Text("QR \(String(format: "%.2f", topping.price))")
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -63,7 +99,7 @@ struct CustomizeView: View {
                 Section(header: Text("Total")) {
                     HStack {
                         Spacer()
-                        Text(viewModel.totalPrice.formatted(.currency(code: "USD")))
+                        Text(NumberFormatter.qarFormatter.string(from: NSNumber(value: viewModel.totalPrice)) ?? "QR \(String(format: "%.2f", viewModel.totalPrice))")
                             .font(.title2.bold())
                         Spacer()
                     }
@@ -75,12 +111,11 @@ struct CustomizeView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add to Cart") {
                         let orderItem = OrderItem(
-                            id: UUID(),
                             name: menuItem.name,
                             size: viewModel.selectedSize?.label ?? "",
-                            sugar: "Normal",
-                            ice: "Normal",
-                            toppings: viewModel.selectedToppings.compactMap { id in
+                            sugarLevel: viewModel.selectedSugarLevel,
+                            iceLevel: viewModel.selectedIceLevel,
+                            selectedToppings: viewModel.selectedToppings.compactMap { id in
                                 viewModel.toppings.first { $0.id == id }?.label
                             },
                             sizePrice: viewModel.selectedSize?.price ?? 0,
@@ -97,6 +132,7 @@ struct CustomizeView: View {
                 }
             }
             .task {
+                viewModel.setBasePrice(menuItem.price)
                 await viewModel.loadModifiers()
             }
             .overlay {

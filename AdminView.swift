@@ -128,6 +128,7 @@ struct AdminTabButton: View {
 struct MenuManagementView: View {
     @State private var menuItems: [MenuItem] = []
     @State private var categories: [MenuCategory] = []
+    @State private var selectedCategory: MenuCategory?
     @State private var showingAddItem = false
     @State private var selectedItem: MenuItem?
     @State private var isLoading = false
@@ -155,7 +156,14 @@ struct MenuManagementView: View {
             
             // Menu items list
             if isLoading {
-                LoadingView()
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Loading...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(menuItems) { item in
                     MenuItemRowView(
@@ -170,21 +178,23 @@ struct MenuManagementView: View {
         }
         .sheet(isPresented: $showingAddItem) {
             MenuItemEditorView(
-                item: nil,
-                categories: categories,
-                onSave: { newItem in
+                selectedCategory: $selectedCategory,
+                menuItems: $menuItems,
+                editingItem: $selectedItem,
+                onItemUpdated: {
                     // Handle save
-                    print("Saving new item: \(newItem.name)")
+                    print("Item updated")
                 }
             )
         }
         .sheet(item: $selectedItem) { item in
             MenuItemEditorView(
-                item: item,
-                categories: categories,
-                onSave: { updatedItem in
+                selectedCategory: $selectedCategory,
+                menuItems: $menuItems,
+                editingItem: $selectedItem,
+                onItemUpdated: {
                     // Handle update
-                    print("Updating item: \(updatedItem.name)")
+                    print("Item updated")
                 }
             )
         }
@@ -234,7 +244,7 @@ struct MenuItemRowView: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    Text(item.formattedPrice)
+                    Text(item.qarFormattedPrice)
                         .font(.subheadline.bold())
                         .foregroundColor(.blue)
                 }
@@ -281,7 +291,14 @@ struct CategoryManagementView: View {
             
             // Categories list
             if isLoading {
-                LoadingView()
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Loading...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(categories) { category in
                     CategoryRowView(category: category) {
@@ -293,19 +310,23 @@ struct CategoryManagementView: View {
         }
         .sheet(isPresented: $showingAddCategory) {
             CategoryEditorView(
-                category: nil,
-                onSave: { newCategory in
+                categories: $categories,
+                selectedCategory: $selectedCategory,
+                editingCategory: $selectedCategory,
+                onCategoryUpdated: {
                     // Handle save
-                    print("Saving new category: \(newCategory.name)")
+                    print("Category updated")
                 }
             )
         }
         .sheet(item: $selectedCategory) { category in
             CategoryEditorView(
-                category: category,
-                onSave: { updatedCategory in
+                categories: $categories,
+                selectedCategory: $selectedCategory,
+                editingCategory: $selectedCategory,
+                onCategoryUpdated: {
                     // Handle update
-                    print("Updating category: \(updatedCategory.name)")
+                    print("Category updated")
                 }
             )
         }

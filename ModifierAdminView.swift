@@ -13,7 +13,7 @@ struct ModifierAdminView: View {
                         HStack {
                             Text(size.label)
                             Spacer()
-                            Text(size.formattedPrice)
+                            Text("QR \(String(format: "%.2f", size.price))")
                             Button(action: {
                                 viewModel.editingSize = size
                             }) {
@@ -61,7 +61,7 @@ struct ModifierAdminView: View {
                         HStack {
                             Text(topping.label)
                             Spacer()
-                            Text(topping.formattedPrice)
+                            Text("QR \(String(format: "%.2f", topping.price))")
                             Button(action: {
                                 viewModel.editingTopping = topping
                             }) {

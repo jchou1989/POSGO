@@ -26,7 +26,7 @@ struct CartView: View {
                             Text("Subtotal")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
-                            Text(viewModel.formattedTotal)
+                            Text(viewModel.formattedTotal(from: cart))
                                 .font(.title2.bold())
                         }
                         Spacer()
@@ -90,7 +90,7 @@ private struct OrderItemRow: View {
                 Text(item.name)
                     .font(.headline)
                 Spacer()
-                Text(item.formattedPrice)
+                Text(item.qarFormattedPrice)
                     .font(.subheadline.bold())
             }
             
@@ -103,10 +103,10 @@ private struct OrderItemRow: View {
                 .foregroundColor(.secondary)
             }
             
-            if !item.toppings.isEmpty {
+            if !item.selectedToppings.isEmpty {
                 HStack(spacing: 4) {
                     Image(systemName: "plus.app")
-                    Text(item.toppings.joined(separator: ", "))
+                    Text(item.selectedToppings.joined(separator: ", "))
                 }
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -144,12 +144,11 @@ private struct EmptyCartView: View {
         CartView(
             cart: .constant([
                 OrderItem(
-                    id: UUID(),
                     name: "Iced Coffee",
                     size: "Large",
-                    sugar: "50%",
-                    ice: "Regular",
-                    toppings: ["Whipped Cream", "Caramel"],
+                    sugarLevel: "50%",
+                    iceLevel: "Regular",
+                    selectedToppings: ["Whipped Cream", "Caramel"],
                     sizePrice: 1.50,
                     toppingPrices: [0.50, 0.75],
                     price: 4.75

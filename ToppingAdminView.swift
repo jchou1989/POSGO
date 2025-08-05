@@ -19,7 +19,7 @@ struct ToppingAdminView: View {
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(topping.label)
-                                    Text(topping.formattedPrice)
+                                    Text("QR \(String(format: "%.2f", topping.price))")
                                         .font(.subheadline)
                                         .foregroundColor(.secondary)
                                 }

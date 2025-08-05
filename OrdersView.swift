@@ -22,28 +22,43 @@ struct OrdersView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Filter buttons
-                OrderFilterView(selectedFilter: $selectedFilter)
-                
-                // Orders list
-                if isLoading {
-                    LoadingView()
-                } else if filteredOrders.isEmpty {
-                    EmptyOrdersView(filter: selectedFilter)
-                } else {
-                    OrdersListView(orders: filteredOrders)
+            HStack(spacing: 0) {
+                // Left side - Orders List (40% width)
+                VStack(spacing: 0) {
+                    // Header with filters
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("Orders")
+                                .font(.title2.bold())
+                            Spacer()
+                            Button(action: refreshOrders) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.title3)
+                            }
+                        }
+                        .padding()
+                        
+                        OrderFilterView(selectedFilter: $selectedFilter)
+                    }
+                    .background(Color(.systemBackground))
+                    
+                    // Orders list
+                    if isLoading {
+                        LoadingView()
+                    } else if filteredOrders.isEmpty {
+                        EmptyOrdersView(filter: selectedFilter)
+                    } else {
+                        OrdersListView(orders: filteredOrders)
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGray6))
+                
+                // Right side - Order Details & Analytics (60% width)
+                OrderDetailsPanel(orders: filteredOrders)
             }
             .navigationTitle("Orders")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: refreshOrders) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-            }
         }
         .task {
             await loadOrders()
@@ -72,6 +87,205 @@ struct OrdersView: View {
         Task {
             await loadOrders()
         }
+    }
+}
+
+// MARK: - Order Details Panel
+struct OrderDetailsPanel: View {
+    let orders: [OrderRecord]
+    @State private var selectedOrder: OrderRecord?
+    @State private var showingAnalytics = true
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Panel header
+            HStack {
+                Text("Order Details & Analytics")
+                    .font(.title2.bold())
+                Spacer()
+                Button(action: { showingAnalytics.toggle() }) {
+                    Image(systemName: showingAnalytics ? "chart.bar.fill" : "chart.bar")
+                        .font(.title3)
+                }
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            
+            if showingAnalytics {
+                // Analytics Dashboard
+                AnalyticsDashboard(orders: orders)
+            } else {
+                // Order Details
+                if let order = selectedOrder {
+                    OrderDetailView(order: order)
+                } else {
+                    VStack(spacing: 20) {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gray.opacity(0.5))
+                        
+                        Text("Select an order to view details")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        }
+        .frame(minWidth: 500, maxWidth: .infinity)
+        .background(Color(.systemBackground))
+        .shadow(color: .black.opacity(0.1), radius: 4, x: -2)
+    }
+}
+
+// MARK: - Analytics Dashboard
+struct AnalyticsDashboard: View {
+    let orders: [OrderRecord]
+    
+    private var totalOrders: Int { orders.count }
+    private var totalRevenue: Double { orders.reduce(0) { $0 + $1.total } }
+    private var pendingOrders: Int { orders.filter { $0.status == .pending }.count }
+    
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Today's Summary
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Today's Summary")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    HStack(spacing: 16) {
+                        AnalyticsCard(
+                            title: "Total Orders",
+                            value: "\(totalOrders)",
+                            icon: "bag.fill",
+                            color: .blue
+                        )
+                        
+                        AnalyticsCard(
+                            title: "Revenue",
+                            value: "QR \(String(format: "%.0f", totalRevenue))",
+                            icon: "creditcard.fill",
+                            color: .green
+                        )
+                        
+                        AnalyticsCard(
+                            title: "Pending",
+                            value: "\(pendingOrders)",
+                            icon: "clock.fill",
+                            color: .orange
+                        )
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Popular Items
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Popular Items")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    VStack(spacing: 8) {
+                        PopularItemRow(name: "Brown Sugar Pearl Milk Tea", count: 12, revenue: "QR 216")
+                        PopularItemRow(name: "Matcha Milk Tea", count: 8, revenue: "QR 152")
+                        PopularItemRow(name: "Fragrant Black Tea", count: 6, revenue: "QR 72")
+                    }
+                    .padding(.horizontal)
+                }
+                
+                // Delivery Partners
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Delivery Partners")
+                        .font(.headline)
+                        .padding(.horizontal)
+                    
+                    HStack(spacing: 16) {
+                        DeliveryPartnerCard(name: "Talabat", orders: 15, revenue: "QR 398")
+                        DeliveryPartnerCard(name: "Deliveroo", orders: 12, revenue: "QR 324")
+                        DeliveryPartnerCard(name: "Walk-in", orders: 20, revenue: "QR 525")
+                    }
+                    .padding(.horizontal)
+                }
+            }
+            .padding(.vertical)
+        }
+    }
+}
+
+struct AnalyticsCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: icon)
+                    .foregroundColor(color)
+                Spacer()
+            }
+            
+            Text(value)
+                .font(.title2.bold())
+                .foregroundColor(.primary)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct PopularItemRow: View {
+    let name: String
+    let count: Int
+    let revenue: String
+    
+    var body: some View {
+        HStack {
+            Text(name)
+                .font(.subheadline)
+            Spacer()
+            Text("\(count) orders")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(revenue)
+                .font(.subheadline.bold())
+                .foregroundColor(.green)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct DeliveryPartnerCard: View {
+    let name: String
+    let orders: Int
+    let revenue: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(name)
+                .font(.headline)
+                .foregroundColor(.primary)
+            
+            Text("\(orders) orders")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Text(revenue)
+                .font(.title3.bold())
+                .foregroundColor(.green)
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -148,7 +362,7 @@ struct OrderRowView: View {
                         Text("Order #\(order.orderNumber)")
                             .font(.headline)
                         Spacer()
-                        Text(order.total.formatted(.currency(code: "USD")))
+                        Text("QR \(String(format: "%.2f", order.total))")
                             .font(.subheadline.bold())
                     }
                     
@@ -163,10 +377,27 @@ struct OrderRowView: View {
                     }
                     
                     HStack {
+                        HStack(spacing: 4) {
+                            Image(systemName: order.orderType.icon)
+                                .font(.caption)
+                                .foregroundColor(order.orderType.color)
+                            Text(order.orderType.displayName)
+                                .font(.caption)
+                                .foregroundColor(order.orderType.color)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(order.orderType.color.opacity(0.1))
+                        .cornerRadius(4)
+                        
+                        Spacer()
+                        
                         Text("\(order.items.count) items")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        
                         Spacer()
+                        
                         Text(order.status.displayName)
                             .font(.caption)
                             .foregroundColor(order.status.color)
@@ -276,7 +507,7 @@ struct OrderHeaderView: View {
                     Text("Total")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    Text(order.total.formatted(.currency(code: "USD")))
+                    Text("QR \(String(format: "%.2f", order.total))")
                         .font(.title3.bold())
                 }
             }
@@ -307,8 +538,8 @@ struct OrderItemsView: View {
                                 .foregroundColor(.secondary)
                         }
                         
-                        if !item.toppings.isEmpty {
-                            Text(item.toppings.joined(separator: ", "))
+                        if !item.selectedToppings.isEmpty {
+                            Text(item.selectedToppings.joined(separator: ", "))
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -316,7 +547,7 @@ struct OrderItemsView: View {
                     
                     Spacer()
                     
-                    Text(item.formattedPrice)
+                    Text(item.qarFormattedPrice)
                         .font(.subheadline.bold())
                 }
                 .padding(.vertical, 4)
@@ -438,9 +669,12 @@ struct OrderRecord: Identifiable, Codable {
     let items: [OrderItem]
     let total: Double
     let status: OrderStatus
+    let orderType: OrderType
     let paymentMethod: PaymentMethod
     let paymentStatus: PaymentStatus
     let timestamp: Date
+    let estimatedDeliveryTime: Date?
+    let deliveryAddress: String?
     
     static let sampleOrders: [OrderRecord] = [
         OrderRecord(
@@ -449,21 +683,24 @@ struct OrderRecord: Identifiable, Codable {
             customerName: "John Doe",
             items: [
                 OrderItem(
-                    name: "Iced Coffee",
+                    name: "Brown Sugar Pearl Milk Tea",
                     size: "Large",
-                    sugar: "50%",
-                    ice: "Regular",
-                    toppings: ["Whipped Cream"],
-                    sizePrice: 1.50,
-                    toppingPrices: [0.50],
-                    price: 4.25
+                    sugarLevel: "Recommende",
+                    iceLevel: "Normal",
+                    selectedToppings: ["Extra Shot"],
+                    sizePrice: 6.0,
+                    toppingPrices: [5.0],
+                    price: 29.0
                 )
             ],
-            total: 4.25,
+            total: 29.0,
             status: .completed,
+            orderType: .talabat,
             paymentMethod: .card,
             paymentStatus: .success,
-            timestamp: Date()
+            timestamp: Date().addingTimeInterval(-3600),
+            estimatedDeliveryTime: Date().addingTimeInterval(-1800),
+            deliveryAddress: "Al Wakrah, Doha"
         ),
         OrderRecord(
             id: UUID(),
@@ -471,21 +708,49 @@ struct OrderRecord: Identifiable, Codable {
             customerName: "Jane Smith",
             items: [
                 OrderItem(
-                    name: "Hot Coffee",
+                    name: "Matcha Milk Tea",
                     size: "Medium",
-                    sugar: "100%",
-                    ice: "None",
-                    toppings: [],
-                    sizePrice: 0,
-                    toppingPrices: [],
-                    price: 3.50
+                    sugarLevel: "Less",
+                    iceLevel: "Less Ice",
+                    selectedToppings: ["Whipped Cream"],
+                    sizePrice: 3.0,
+                    toppingPrices: [2.0],
+                    price: 24.0
                 )
             ],
-            total: 3.50,
+            total: 24.0,
             status: .pending,
+            orderType: .deliveroo,
             paymentMethod: .cash,
             paymentStatus: .pending,
-            timestamp: Date().addingTimeInterval(-3600)
+            timestamp: Date().addingTimeInterval(-7200),
+            estimatedDeliveryTime: Date().addingTimeInterval(1800),
+            deliveryAddress: "West Bay, Doha"
+        ),
+        OrderRecord(
+            id: UUID(),
+            orderNumber: "1003",
+            customerName: "Walk-in Customer",
+            items: [
+                OrderItem(
+                    name: "Fragrant Black Tea",
+                    size: "Small",
+                    sugarLevel: "Zero Sugar",
+                    iceLevel: "No Ice",
+                    selectedToppings: [],
+                    sizePrice: 0.0,
+                    toppingPrices: [],
+                    price: 12.0
+                )
+            ],
+            total: 12.0,
+            status: .completed,
+            orderType: .walkIn,
+            paymentMethod: .qlub,
+            paymentStatus: .success,
+            timestamp: Date().addingTimeInterval(-1800),
+            estimatedDeliveryTime: nil,
+            deliveryAddress: nil
         )
     ]
 }
@@ -506,30 +771,7 @@ enum OrderFilter: String, CaseIterable {
     }
 }
 
-enum OrderStatus: String, Codable, CaseIterable {
-    case pending = "pending"
-    case inProgress = "in_progress"
-    case completed = "completed"
-    case cancelled = "cancelled"
-    
-    var displayName: String {
-        switch self {
-        case .pending: return "Pending"
-        case .inProgress: return "In Progress"
-        case .completed: return "Completed"
-        case .cancelled: return "Cancelled"
-        }
-    }
-    
-    var color: Color {
-        switch self {
-        case .pending: return .orange
-        case .inProgress: return .blue
-        case .completed: return .green
-        case .cancelled: return .red
-        }
-    }
-}
+// OrderStatus is now defined in SharedModels.swift
 
 // MARK: - Status Update View
 struct OrderStatusUpdateView: View {

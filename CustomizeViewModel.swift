@@ -4,12 +4,19 @@ class CustomizeViewModel: ObservableObject {
     @Published var sizes: [SizeOption] = []
     @Published var toppings: [ToppingOption] = []
     @Published var selectedSize: SizeOption?
+    @Published var selectedSugarLevel: String = "Recommende"
+    @Published var selectedIceLevel: String = "Normal"
     @Published var selectedToppings = Set<UUID>()
     @Published var quantity = 1
     @Published var isLoading = false
     
+    private var basePrice: Double = 0.0
+    
+    func setBasePrice(_ price: Double) {
+        basePrice = price
+    }
+    
     var totalPrice: Double {
-        let basePrice = 0.0 // Will be replaced with menuItem.price later
         let sizePrice = selectedSize?.price ?? 0
         let toppingsPrice = selectedToppings.reduce(0) { sum, id in
             sum + (toppings.first { $0.id == id }?.price ?? 0)
