@@ -17,46 +17,50 @@ struct POSView: View {
     
     var body: some View {
         NavigationView {
-            // Left side - Menu (70% width)
-            VStack(spacing: 0) {
-                // Header
-                POSHeaderView(
-                    onAdminTap: {
-                        showingAdmin = true
-                    }
-                )
-                
-                // Categories
-                CategoryGridView(
-                    categories: categories,
-                    selectedCategory: $selectedCategory,
-                    onCategorySelected: { category in
-                        selectedCategory = category
-                        Task {
-                            await loadMenuItems(for: category.id)
+            HStack(spacing: 0) {
+                // Left side - Menu (70% width)
+                VStack(spacing: 0) {
+                    // Header
+                    POSHeaderView(
+                        onAdminTap: {
+                            showingAdmin = true
                         }
-                    }
-                )
-                
-                // Menu Items Grid
-                MenuItemsGridView(
-                    items: menuItems,
-                    onItemSelected: { item in
-                        selectedMenuItem = item
-                        showingCustomize = true
-                    }
-                )
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemGray6))
-            
-            // Right side - Cart (30% width)
-            CartSidebarView(
-                cart: $appState.cart,
-                onCheckout: {
-                    showingPayment = true
+                    )
+                    
+                    // Categories
+                    CategoryGridView(
+                        categories: categories,
+                        selectedCategory: $selectedCategory,
+                        onCategorySelected: { category in
+                            selectedCategory = category
+                            Task {
+                                await loadMenuItems(for: category.id)
+                            }
+                        }
+                    )
+                    
+                    // Menu Items Grid
+                    MenuItemsGridView(
+                        items: menuItems,
+                        onItemSelected: { item in
+                            selectedMenuItem = item
+                            showingCustomize = true
+                        }
+                    )
                 }
-            )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(.systemGray6))
+                
+                // Right side - Cart (30% width) - ALWAYS VISIBLE
+                CartSidebarView(
+                    cart: $appState.cart,
+                    onCheckout: {
+                        showingPayment = true
+                    }
+                )
+                .frame(width: 400)
+                .background(Color(.systemBackground))
+            }
         }
         .navigationViewStyle(StackNavigationViewStyle())
         .sheet(isPresented: $showingPayment) {
@@ -396,7 +400,6 @@ struct CartSidebarView: View {
             }
             .background(Color(.systemBackground))
         }
-        .frame(minWidth: 400, maxWidth: .infinity)
         .background(Color(.systemBackground))
         .shadow(color: .black.opacity(0.1), radius: 4, x: -2)
     }

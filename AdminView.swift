@@ -131,6 +131,7 @@ struct MenuManagementView: View {
     @State private var selectedCategory: MenuCategory?
     @State private var showingAddItem = false
     @State private var selectedItem: MenuItem?
+    @State private var editingItem: MenuItem?
     @State private var isLoading = false
     
     var body: some View {
@@ -140,7 +141,10 @@ struct MenuManagementView: View {
                 Text("Menu Items")
                     .font(.title2.bold())
                 Spacer()
-                Button(action: { showingAddItem = true }) {
+                Button(action: { 
+                    editingItem = nil
+                    showingAddItem = true 
+                }) {
                     HStack {
                         Image(systemName: "plus")
                         Text("Add Item")
@@ -170,7 +174,7 @@ struct MenuManagementView: View {
                         item: item,
                         category: categories.first { $0.id == item.category_id }
                     ) {
-                        selectedItem = item
+                        editingItem = item
                     }
                 }
                 .listStyle(PlainListStyle())
@@ -180,18 +184,18 @@ struct MenuManagementView: View {
             MenuItemEditorView(
                 selectedCategory: $selectedCategory,
                 menuItems: $menuItems,
-                editingItem: $selectedItem,
+                editingItem: $editingItem,
                 onItemUpdated: {
                     // Handle save
-                    print("Item updated")
+                    print("Item added")
                 }
             )
         }
-        .sheet(item: $selectedItem) { item in
+        .sheet(item: $editingItem) { item in
             MenuItemEditorView(
                 selectedCategory: $selectedCategory,
                 menuItems: $menuItems,
-                editingItem: $selectedItem,
+                editingItem: $editingItem,
                 onItemUpdated: {
                     // Handle update
                     print("Item updated")
@@ -208,6 +212,7 @@ struct MenuManagementView: View {
         do {
             categories = try await SupabaseService.fetchCategories()
             if let firstCategory = categories.first {
+                selectedCategory = firstCategory
                 menuItems = try await SupabaseService.fetchMenuItems(for: firstCategory.id)
             }
         } catch {
@@ -266,6 +271,7 @@ struct CategoryManagementView: View {
     @State private var categories: [MenuCategory] = []
     @State private var showingAddCategory = false
     @State private var selectedCategory: MenuCategory?
+    @State private var editingCategory: MenuCategory?
     @State private var isLoading = false
     
     var body: some View {
@@ -275,7 +281,10 @@ struct CategoryManagementView: View {
                 Text("Categories")
                     .font(.title2.bold())
                 Spacer()
-                Button(action: { showingAddCategory = true }) {
+                Button(action: { 
+                    editingCategory = nil
+                    showingAddCategory = true 
+                }) {
                     HStack {
                         Image(systemName: "plus")
                         Text("Add Category")
@@ -302,7 +311,7 @@ struct CategoryManagementView: View {
             } else {
                 List(categories) { category in
                     CategoryRowView(category: category) {
-                        selectedCategory = category
+                        editingCategory = category
                     }
                 }
                 .listStyle(PlainListStyle())
@@ -312,18 +321,18 @@ struct CategoryManagementView: View {
             CategoryEditorView(
                 categories: $categories,
                 selectedCategory: $selectedCategory,
-                editingCategory: $selectedCategory,
+                editingCategory: $editingCategory,
                 onCategoryUpdated: {
                     // Handle save
-                    print("Category updated")
+                    print("Category added")
                 }
             )
         }
-        .sheet(item: $selectedCategory) { category in
+        .sheet(item: $editingCategory) { category in
             CategoryEditorView(
                 categories: $categories,
                 selectedCategory: $selectedCategory,
-                editingCategory: $selectedCategory,
+                editingCategory: $editingCategory,
                 onCategoryUpdated: {
                     // Handle update
                     print("Category updated")

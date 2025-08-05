@@ -98,43 +98,42 @@ struct OrderDetailsPanel: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Panel header
+            // Panel Header
             HStack {
-                Text("Order Details & Analytics")
-                    .font(.title2.bold())
-                Spacer()
-                Button(action: { showingAnalytics.toggle() }) {
-                    Image(systemName: showingAnalytics ? "chart.bar.fill" : "chart.bar")
-                        .font(.title3)
+                Button("Analytics") {
+                    showingAnalytics = true
                 }
+                .foregroundColor(showingAnalytics ? .blue : .secondary)
+                
+                Button("Order Details") {
+                    showingAnalytics = false
+                }
+                .foregroundColor(!showingAnalytics ? .blue : .secondary)
+                
+                Spacer()
             }
             .padding()
             .background(Color(.systemBackground))
             
+            // Panel Content
             if showingAnalytics {
-                // Analytics Dashboard
                 AnalyticsDashboard(orders: orders)
+            } else if let selectedOrder = selectedOrder {
+                OrderDetailView(order: selectedOrder)
             } else {
-                // Order Details
-                if let order = selectedOrder {
-                    OrderDetailView(order: order)
-                } else {
-                    VStack(spacing: 20) {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 60))
-                            .foregroundColor(.gray.opacity(0.5))
-                        
-                        Text("Select an order to view details")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 20) {
+                    Image(systemName: "doc.text")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray.opacity(0.5))
+                    
+                    Text("Select an order to view details")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .frame(minWidth: 500, maxWidth: .infinity)
         .background(Color(.systemBackground))
-        .shadow(color: .black.opacity(0.1), radius: 4, x: -2)
     }
 }
 
@@ -146,74 +145,155 @@ struct AnalyticsDashboard: View {
     private var totalRevenue: Double { orders.reduce(0) { $0 + $1.total } }
     private var pendingOrders: Int { orders.filter { $0.status == .pending }.count }
     
+    private var popularItems: [(String, Int)] {
+        let itemCounts = orders.flatMap { $0.items }.reduce(into: [:]) { counts, item in
+            counts[item.name, default: 0] += 1
+        }
+        return itemCounts.sorted { $0.value > $1.value }.prefix(5).map { ($0.key, $0.value) }
+    }
+    
+    private var deliveryPartners: [(String, Int, Double)] {
+        let partnerStats = orders.reduce(into: [:]) { stats, order in
+            let partner = order.orderType.displayName
+            let current = stats[partner, default: (0, 0.0)]
+            stats[partner] = (current.0 + 1, current.1 + order.total)
+        }
+        return partnerStats.map { ($0.key, $0.value.0, $0.value.1) }.sorted { $0.1 > $1.1 }
+    }
+    
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
+            VStack(spacing: 24) {
                 // Today's Summary
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("Today's Summary")
-                        .font(.headline)
-                        .padding(.horizontal)
+                        .font(.title2.bold())
                     
                     HStack(spacing: 16) {
-                        AnalyticsCard(
+                        SummaryCard(
                             title: "Total Orders",
                             value: "\(totalOrders)",
-                            icon: "bag.fill",
+                            icon: "list.bullet",
                             color: .blue
                         )
                         
-                        AnalyticsCard(
+                        SummaryCard(
                             title: "Revenue",
                             value: "QR \(String(format: "%.0f", totalRevenue))",
                             icon: "creditcard.fill",
                             color: .green
                         )
                         
-                        AnalyticsCard(
+                        SummaryCard(
                             title: "Pending",
                             value: "\(pendingOrders)",
                             icon: "clock.fill",
                             color: .orange
                         )
                     }
-                    .padding(.horizontal)
                 }
                 
                 // Popular Items
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("Popular Items")
-                        .font(.headline)
-                        .padding(.horizontal)
+                        .font(.title2.bold())
                     
-                    VStack(spacing: 8) {
-                        PopularItemRow(name: "Brown Sugar Pearl Milk Tea", count: 12, revenue: "QR 216")
-                        PopularItemRow(name: "Matcha Milk Tea", count: 8, revenue: "QR 152")
-                        PopularItemRow(name: "Fragrant Black Tea", count: 6, revenue: "QR 72")
+                    VStack(spacing: 12) {
+                        ForEach(Array(popularItems.enumerated()), id: \.offset) { index, item in
+                            HStack {
+                                Text("\(index + 1).")
+                                    .font(.headline)
+                                    .foregroundColor(.blue)
+                                    .frame(width: 30, alignment: .leading)
+                                
+                                Text(item.0)
+                                    .font(.subheadline)
+                                
+                                Spacer()
+                                
+                                Text("\(item.1) orders")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                        }
                     }
-                    .padding(.horizontal)
                 }
                 
                 // Delivery Partners
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("Delivery Partners")
-                        .font(.headline)
-                        .padding(.horizontal)
+                        .font(.title2.bold())
                     
-                    HStack(spacing: 16) {
-                        DeliveryPartnerCard(name: "Talabat", orders: 15, revenue: "QR 398")
-                        DeliveryPartnerCard(name: "Deliveroo", orders: 12, revenue: "QR 324")
-                        DeliveryPartnerCard(name: "Walk-in", orders: 20, revenue: "QR 525")
+                    VStack(spacing: 12) {
+                        ForEach(Array(deliveryPartners.enumerated()), id: \.offset) { index, partner in
+                            HStack {
+                                Image(systemName: "car.fill")
+                                    .foregroundColor(partner.0 == "Talabat" ? .orange : 
+                                                   partner.0 == "Deliveroo" ? .green : .blue)
+                                
+                                Text(partner.0)
+                                    .font(.subheadline)
+                                
+                                Spacer()
+                                
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text("\(partner.1) orders")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Text("QR \(String(format: "%.0f", partner.2))")
+                                        .font(.caption.bold())
+                                        .foregroundColor(.green)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(Color(.systemGray6))
+                            .cornerRadius(8)
+                        }
                     }
-                    .padding(.horizontal)
+                }
+                
+                // Recent Activity
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Recent Activity")
+                        .font(.title2.bold())
+                    
+                    VStack(spacing: 8) {
+                        ForEach(orders.prefix(5), id: \.id) { order in
+                            HStack {
+                                Circle()
+                                    .fill(order.status.color)
+                                    .frame(width: 8, height: 8)
+                                
+                                Text("Order #\(order.id.uuidString.prefix(8))")
+                                    .font(.subheadline)
+                                
+                                Spacer()
+                                
+                                Text(order.status.displayName)
+                                    .font(.caption)
+                                    .foregroundColor(order.status.color)
+                                
+                                Text("QR \(String(format: "%.2f", order.total))")
+                                    .font(.caption.bold())
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
                 }
             }
-            .padding(.vertical)
+            .padding()
         }
     }
 }
 
-struct AnalyticsCard: View {
+// MARK: - Summary Card
+struct SummaryCard: View {
     let title: String
     let value: String
     let icon: String
@@ -236,55 +316,9 @@ struct AnalyticsCard: View {
                 .foregroundColor(.secondary)
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color(.systemBackground))
         .cornerRadius(12)
-        .frame(maxWidth: .infinity)
-    }
-}
-
-struct PopularItemRow: View {
-    let name: String
-    let count: Int
-    let revenue: String
-    
-    var body: some View {
-        HStack {
-            Text(name)
-                .font(.subheadline)
-            Spacer()
-            Text("\(count) orders")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(revenue)
-                .font(.subheadline.bold())
-                .foregroundColor(.green)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-struct DeliveryPartnerCard: View {
-    let name: String
-    let orders: Int
-    let revenue: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(name)
-                .font(.headline)
-                .foregroundColor(.primary)
-            
-            Text("\(orders) orders")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Text(revenue)
-                .font(.title3.bold())
-                .foregroundColor(.green)
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
+        .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
         .frame(maxWidth: .infinity)
     }
 }
