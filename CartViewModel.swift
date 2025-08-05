@@ -18,17 +18,25 @@ class CartViewModel: ObservableObject {
     }
     
     func submitOrder(cart: [OrderItem]) async -> Bool {
-        isSubmitting = true
-        defer { isSubmitting = false }
+        await MainActor.run {
+            isSubmitting = true
+        }
         
         do {
             let total = calculateTotal(from: cart)
             try await SupabaseService.submitOrder(order: Order(items: cart, total: total))
-            showSuccess = true
+            
+            await MainActor.run {
+                showSuccess = true
+                isSubmitting = false
+            }
             return true
         } catch {
-            errorMessage = error.localizedDescription
-            showError = true
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                showError = true
+                isSubmitting = false
+            }
             return false
         }
     }

@@ -25,16 +25,26 @@ class CustomizeViewModel: ObservableObject {
     }
     
     func loadModifiers() async {
-        isLoading = true
-        defer { isLoading = false }
+        await MainActor.run {
+            isLoading = true
+        }
         
         do {
             async let fetchedSizes = SupabaseService.fetchSizeOptions()
             async let fetchedToppings = SupabaseService.fetchToppingOptions()
-            sizes = try await fetchedSizes
-            toppings = try await fetchedToppings
+            let fetchedSizesResult = try await fetchedSizes
+            let fetchedToppingsResult = try await fetchedToppings
+            
+            await MainActor.run {
+                sizes = fetchedSizesResult
+                toppings = fetchedToppingsResult
+                isLoading = false
+            }
         } catch {
             print("Error loading modifiers: \(error)")
+            await MainActor.run {
+                isLoading = false
+            }
         }
     }
 }

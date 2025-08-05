@@ -15,10 +15,17 @@ class ModifierAdminViewModel: ObservableObject {
         do {
             async let sizesTask = SupabaseService.fetchSizeOptions()
             async let toppingsTask = SupabaseService.fetchToppingOptions()
-            sizes = try await sizesTask
-            toppings = try await toppingsTask
+            let fetchedSizes = try await sizesTask
+            let fetchedToppings = try await toppingsTask
+            
+            await MainActor.run {
+                sizes = fetchedSizes
+                toppings = fetchedToppings
+            }
         } catch {
-            errorMessage = error.localizedDescription
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+            }
         }
     }
     
@@ -27,8 +34,11 @@ class ModifierAdminViewModel: ObservableObject {
             throw NSError(domain: "Invalid price", code: 0)
         }
         try await SupabaseService.addSizeOption(label: newSizeLabel, price: price)
-        newSizeLabel = ""
-        newSizePrice = ""
+        
+        await MainActor.run {
+            newSizeLabel = ""
+            newSizePrice = ""
+        }
         await loadModifiers()
     }
     
@@ -37,8 +47,11 @@ class ModifierAdminViewModel: ObservableObject {
             throw NSError(domain: "Invalid price", code: 0)
         }
         try await SupabaseService.addToppingOption(label: newToppingLabel, price: price)
-        newToppingLabel = ""
-        newToppingPrice = ""
+        
+        await MainActor.run {
+            newToppingLabel = ""
+            newToppingPrice = ""
+        }
         await loadModifiers()
     }
     
