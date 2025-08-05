@@ -153,7 +153,7 @@ struct AnalyticsDashboard: View {
     }
     
     private var deliveryPartners: [(String, Int, Double)] {
-        let partnerStats = orders.reduce(into: [:]) { stats, order in
+        let partnerStats = orders.reduce(into: [String: (Int, Double)]()) { stats, order in
             let partner = order.orderType.displayName
             let current = stats[partner, default: (0, 0.0)]
             stats[partner] = (current.0 + 1, current.1 + order.total)

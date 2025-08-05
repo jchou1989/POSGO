@@ -23,6 +23,7 @@
 		50A84B832E08AADC002283BC /* POSGO.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = POSGO.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		50C394F52E40E8D700DBD34C /* POSGO.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = POSGO.xcodeproj; sourceTree = "<group>"; };
 		50F1FB732E40CE6400341D1B /* POSGO.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = POSGO.xcodeproj; sourceTree = "<group>"; };
+		50F34A1E2E42B55400FD9C8D /* POSGO.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = POSGO.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -97,6 +98,11 @@
 			sourceTree = "<group>";
 		};
 		50F1FB7C2E40CE6400341D1B /* Products */ = {
+			isa = PBXGroup;
+			name = Products;
+			sourceTree = "<group>";
+		};
+		50F34A2A2E42B55400FD9C8D /* Products */ = {
 			isa = PBXGroup;
 			name = Products;
 			sourceTree = "<group>";
@@ -180,6 +186,10 @@
 				{
 					ProductGroup = 50C395002E40E8D700DBD34C /* Products */;
 					ProjectRef = 50C394F52E40E8D700DBD34C /* POSGO.xcodeproj */;
+				},
+				{
+					ProductGroup = 50F34A2A2E42B55400FD9C8D /* Products */;
+					ProjectRef = 50F34A1E2E42B55400FD9C8D /* POSGO.xcodeproj */;
 				},
 				{
 					ProductGroup = 50F1FB7C2E40CE6400341D1B /* Products */;
